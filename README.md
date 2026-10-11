@@ -56,6 +56,12 @@ own memory, working on your computer.
 - [Getting started](#getting-started)
 - [Your data](#your-data)
 - [For developers](#for-developers)
+  - [Prerequisites and setup](#prerequisites-and-setup)
+  - [Quick start: running your first agent](#quick-start-running-your-first-agent)
+  - [Folder structure](#folder-structure)
+  - [Troubleshooting common issues](#troubleshooting-common-issues)
+  - [Where to read next](#where-to-read-next)
+  - [What this build leaves out](#what-this-build-leaves-out)
 - [Contributing](#contributing)
 - [License](#license)
 - [Acknowledgements](#acknowledgements)
@@ -338,27 +344,139 @@ member is a real Claude Code process in its own terminal. The team coordinates t
 a folder of plain files with a mailbox, memory and a task board per agent; only the app commits to
 it.
 
-### Build from source
+### Prerequisites and setup
 
-You need Node.js 18 or newer, npm, and a C/C++ toolchain for `node-pty` (on a Mac:
-`xcode-select --install`; on Windows, [`node-pty`'s prerequisites](https://github.com/microsoft/node-pty#dependencies)).
+To build and run the local multi-agent harness from source, you need:
+
+- **Node.js 18 or newer** and npm.
+- **C/C++ compiler toolchain** for building native addons like `node-pty`:
+  - On macOS: run `xcode-select --install`.
+  - On Windows: install Visual Studio C++ Build Tools (see [`node-pty`'s prerequisites](https://github.com/microsoft/node-pty#dependencies)).
+  - On Linux: install build tools such as `build-essential`, `python3`, and `make`.
+- **[Claude Code](https://claude.com/claude-code)** installed on your `PATH` (`claude`), signed in to a Claude plan, or an Anthropic API key (`ANTHROPIC_API_KEY`).
+
+#### Install and launch
+
+1. Clone the repository and navigate into the folder:
+   ```bash
+   git clone https://github.com/agentvivekkumar/dontbemichael.git
+   cd dontbemichael
+   ```
+2. Install dependencies (the postinstall step automatically rebuilds `node-pty` for Electron):
+   ```bash
+   npm install
+   ```
+3. Start the application in development mode with live reloading:
+   ```bash
+   npm run dev
+   ```
+
+#### Helpful development commands
 
 ```bash
-git clone https://github.com/agentvivekkumar/dontbemichael.git
-cd dontbemichael
-npm install        # also rebuilds node-pty for Electron
-npm run dev        # the app with hot reload
+npm run typecheck     # type check main, preload and renderer
+npm run test:focused  # run the node:test suite in test/
+npm run build         # production build in out/
+npm run dist:mac      # build macOS installer in dist/
+npm run dist:win      # build Windows installer in dist/
+npm run dist:linux    # build Linux AppImage in dist/
 ```
 
-```bash
-npm run typecheck     # main, preload and renderer
-npm run test:focused  # the node:test suite in test/
-npm run build         # production build
-npm run dist:mac      # the Mac installer, in dist/
-npm run dist:win      # the Windows installer, in dist/
+#### Configuring the harness
+
+When the app launches for the first time, the onboarding flow sets up your local harness:
+- **Business details**: Enter a business name and headquarters. The app sets up your primary business folder at `~/Documents/<BusinessName>`.
+- **Suggested team**: Pick an Office Pack (such as Pro Services, SaaS/Consulting, Retail Shop, or Restaurant) to seed roles and starter tasks.
+- **Get Michael ready**: The harness checks for an authenticated `claude` CLI on your system path. If you do not have a Claude account subscription, you can enter an Anthropic API key instead.
+
+### Quick start: running your first agent
+
+Once the office opens, here is how to get your multi-agent team working right away:
+
+1. **Meet Michael (Office Manager)**:
+   Michael sits in the glass office at the center of the office floor. He is your orchestrator and primary contact. When you talk to Michael, he decides who handles the work and keeps the task board updated.
+
+2. **Add your first agent**:
+   - Click **+ Add agent** on the office floor (or keep the starter team from setup).
+   - In the hire wizard, choose a character (such as Kelly for Customer Support or Pam for Executive Admin).
+   - Review the role description and work style. The app verifies that no two teammates have overlapping duties.
+   - Click **Hire**. The app creates a private workspace folder for the agent and spins up their dedicated Claude Code process in its own terminal.
+
+3. **Assign a task**:
+   - In the **Talk to Michael** input box at the bottom, type a request such as:
+     `"Ask Kelly to draft a customer welcome email for new signups."`
+   - Michael receives the request, logs it on the task board, and routes a message to Kelly's inbox.
+
+4. **Watch the agent work in real time**:
+   - Click on the agent's pod on the office floor.
+   - Switch to the **Work** tab to watch their live terminal session. You can see Claude Code read files, run tools, and draft responses.
+   - Switch to the **Memory** tab to view notes the agent records as they complete tasks.
+
+5. **Talk 1:1 directly**:
+   - If you want to work with a team member directly without going through Michael, select their card and click **Talk 1:1**.
+   - Michael holds off on assigning other work to that teammate until you finish your 1:1 session.
+
+### Folder structure
+
+Understanding how files and directories are organized helps when contributing or debugging:
+
+#### Codebase layout
+
+| Directory | Purpose |
+|---|---|
+| `src/main/` | Electron main process: PTY process manager (`pty.ts`), hook server (`hooks.ts`), hive multi-agent coordinator (`hive.ts`), configuration (`config.ts`), secret storage (`integrations.ts`), and native bridges. |
+| `src/preload/` | Secure IPC bridge using Electron `contextBridge` to expose the typed `window.cth` API to the renderer. |
+| `src/renderer/` | React front end: SVG office floor studio (`scene/studio/`), character avatars, xterm.js terminal integration, Kanban task board, panels, and Zustand state stores. |
+| `src/shared/` | Shared TypeScript code used by both main and renderer: agent definitions, Office Pack schemas, mailbox models, and feature flags (`buildFeatures.ts`). |
+| `resources/packs/` | Bundled Office Packs (`core.json`, `pro-services.json`, `saas.json`, etc.) with department roles, starter instructions, and schedules. |
+| `hive/` | Specifications and contracts for autonomous multi-agent coordination, message schemas, and shared memory. |
+| `test/` | Complete `node:test` suite verifying cross-platform compatibility, file safety, hook routing, and platform rules. |
+| `docs/` | Architecture guides, design documentation, and feature changelogs. |
+
+#### Runtime workspace layout
+
+When the harness is running, it organizes runtime files on your computer:
+
+```
+~/Documents/<BusinessName>/       # Root business directory (filing cabinet)
+  ├── Michael's workspace         # Michael reads the root directory and department folders
+  ├── Executive Admin/            # Private working folder for Executive Admin
+  │   └── ...                     # Department files, notes, and outputs
+  └── Customer Support/           # Private working folder for Customer Support
+      └── ...                     # Inquiries, drafts, and customer docs
+
+<harnessHome>/hive/               # Multi-agent coordination directory
+  ├── registry.json               # Roster: active agents, roles, and status
+  ├── tasks.json                  # Central task ledger
+  ├── board.md                    # Shared blackboard for cross-agent plans
+  └── agents/<agentId>/           # Per-agent coordination folder
+      ├── identity.md             # Role, prompt, and capabilities
+      ├── memory.md               # Persistent long-term memory notes
+      ├── inbox/                  # Incoming messages delivered by the router
+      └── outbox/                 # Outgoing messages waiting for delivery
 ```
 
-If `node-pty` fails to load after an Electron upgrade, run `npm install` again.
+### Troubleshooting common issues
+
+#### 1. Native `node-pty` build or `NODE_MODULE_VERSION` error
+- **Symptom**: App fails to start with an error like `The module '...node-pty.node' was compiled against a different Node.js version` or native compilation fails during installation.
+- **Cause**: `node-pty` includes native C/C++ bindings that must be compiled specifically for Electron's Node ABI version.
+- **Fix**: Make sure your C/C++ compiler tools are installed (`xcode-select --install` on macOS, Visual Studio Build Tools on Windows, or `build-essential` on Linux). Then run `npm install` again, which automatically runs `electron-rebuild`.
+
+#### 2. Claude Code CLI not found or login expired
+- **Symptom**: Agent terminals fail to boot, or the setup screen says Claude Code is not ready.
+- **Cause**: The `claude` executable is not installed globally on your system `PATH`, or your session is logged out.
+- **Fix**: Verify that `claude --version` runs in your terminal. If missing, install it with `npm install -g @anthropic-ai/claude-code` and run `claude` once to complete sign in. Alternatively, enter your Anthropic API key in Settings or the setup wizard.
+
+#### 3. Platform file locks or antivirus alerts on Windows
+- **Symptom**: Intermittent `EPERM` or file lock errors when the app writes configuration or creates new agent directories.
+- **Cause**: External tools such as antivirus software or search indexers can briefly hold open handles to freshly created files.
+- **Fix**: The main process includes automatic retry logic for transient file locks, but adding an exclusion for your business workspace directory in active security tools can prevent timing conflicts.
+
+#### 4. Paths with spaces
+- **Symptom**: Commands fail or paths are truncated if your user folder or business directory contains spaces.
+- **Cause**: Unquoted paths in shell invocations.
+- **Fix**: The harness uses quoted paths and Node path helpers (`path.join`). If you write custom scripts or tools, always wrap directory paths in quotes.
 
 ### Where to read next
 
