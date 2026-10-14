@@ -35,6 +35,8 @@ import type {
 export type {
   ContextRule, ContextTriggerConfig, OrgTriggerConfig, TriggerHistoryEntry, WebhookTrigger
 } from '../shared/triggers';
+import type { CodeFirstRequest, CodeFirstResult, CodeFirstTaskType } from '../shared/codeFirstExecution';
+export type { CodeFirstRequest, CodeFirstResult, CodeFirstTaskType } from '../shared/codeFirstExecution';
 
 /** Renderer-visible integration record: the secretRef handle is redacted to a
  *  presence boolean. Matches main `integrations.listRecordsRedacted()` — the
@@ -1355,6 +1357,9 @@ const api = {
   /** The owner ends a card: Done, marked "Closed by owner", never deleted. */
   hiveCloseTask: (id: string, reason?: string): Promise<{ ok: boolean; error?: string }> =>
     ipcRenderer.invoke('hive:closeTask', id, reason),
+  /** Execute an office task deterministically via code first handler. */
+  codeFirstExecute: (req: CodeFirstRequest): Promise<CodeFirstResult> =>
+    ipcRenderer.invoke('codeFirst:execute', req),
 
   // ─── Scheduled missions (recurring auto-dispatch) ──────────────────────────
   listMissions: (): Promise<ScheduledMission[]> => ipcRenderer.invoke('missions:list'),
